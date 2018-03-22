@@ -8,7 +8,7 @@ There is a minimal requirement for the host system to support the bash scripting
 # Execution
 As this script will install additional depencancies superuser password is requested.
 ```
-sudo abaco-flash-tegra.sh
+sudo flash-tegra.sh
 ```
 There is also a flashing only tool with a cutdown interface called ezflash. To run this:
 ```
