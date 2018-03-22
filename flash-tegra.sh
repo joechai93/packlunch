@@ -30,7 +30,7 @@ BOARD=jetson-tx2
 RELEASE="unknown";
 UBUNTU_RELEASE=xenial
 UBUNTU_RELEASE_VERSION=16.04.02
-ABACO_TITLE="Abaco Systems GVC1000 System Setup"
+MENU_TITLE="Nvidia TX2 - System Setup"
 OS="Ubuntu Base 16.04.2"
 UBUNTU_BASE=" - Ubuntu Base 16.04.2"
 PREPARE="Preparing Filesystem..."
@@ -102,7 +102,7 @@ cleanup() {
 }
 
 abort() {
-  dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "Abort" \
+  dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Abort" \
     --msgbox "Board not flashed please run this script again!!!" 6 60
   cleanup
   clear
@@ -117,7 +117,7 @@ check_connected() {
     NVIDIA_READY="\Z2Found nVidia device on USB ready to flash.\Z0\n"
   fi
 
-  dialog --colors --backtitle "${ABACO_TITLE}"  \
+  dialog --colors --backtitle "${MENU_TITLE}"  \
     --msgbox "Target check:\n\n${NVIDIA_READY}\n" 9 60
 }
 
@@ -143,13 +143,13 @@ flash_filesystem() {
       NVIDIA_READY="\Z2NOTE: Found nVidia device on USB ready to flash.\Z0\n"
     fi
 
-    dialog --colors --backtitle "${ABACO_TITLE}"  \
+    dialog --colors --backtitle "${MENU_TITLE}"  \
       --help-button --help-label "Re-check" --yesno "Are you ready to flash the filesystem?\n\n${NVIDIA_READY}\n" 9 60
 
     response=$?
     case $response in
        0) clean; # Last thing we do is clean the filesystem
-          sudo ./flash.sh $1 ${BOARD} mmcblk0p1 2> /dev/null | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for flashing to complete\Z0" --exit-label 'Exit when flash completes' --programbox "Flashing target..." 25 85 2> /dev/null; FLASH_OK=true;;
+          sudo ./flash.sh $1 ${BOARD} mmcblk0p1 2> /dev/null | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for flashing to complete\Z0" --exit-label 'Exit when flash completes' --programbox "Flashing target..." 25 85 2> /dev/null; FLASH_OK=true;;
        1) abort; clear; exit -1;;
        255) echo "[ESC] key pressed.";;
     esac
@@ -161,7 +161,7 @@ check_for_kernel_update() {
   cd ${ROOT}/Linux_for_Tegra  > /dev/null
   if [ -f ../$KERNEL_PATH/Image ]; then
     d=$(stat -c%y ../$KERNEL_PATH/Image | cut -d'.' -f1)
-    dialog --colors --backtitle "${ABACO_TITLE}${VERSION}"  \
+    dialog --colors --backtitle "${MENU_TITLE}${VERSION}"  \
       --yesno "Rebuilt kernel image detected, would copy this into the filesystem?\n\n           KERNEL BUILT : \Z6$d\Zn" 9 60
 
     response=$?
@@ -213,7 +213,7 @@ select_packages() {
     n=$[n+1]
   done < $PACKAGES
 
-  cmd="dialog --stdout --backtitle \"${ABACO_TITLE}${VERSION}\" --checklist 'Items read from file ./$1:' 21 60 20 $pkglist"
+  cmd="dialog --stdout --backtitle \"${MENU_TITLE}${VERSION}\" --checklist 'Items read from file ./$1:' 21 60 20 $pkglist"
 
   choices=`eval $cmd`
 }
@@ -227,12 +227,12 @@ install_packages() {
   for choice in $choices
   do
     progress=$(($progress + 1))
-    echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Installing $choice package..." ${PROGRESS_HEIGHT} 70 
+    echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Installing $choice package..." ${PROGRESS_HEIGHT} 70 
     chroot . /bin/bash -c "DEBIAN_FRONTEND=noninteractive apt-get -qqy install --no-install-recommends $choice" &>> install.log
   done
 
   progress=$(($progress + 1))
-  echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Cleaning apt cache..." ${PROGRESS_HEIGHT} 70 
+  echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Cleaning apt cache..." ${PROGRESS_HEIGHT} 70 
 }
 
 install_pack={}
@@ -257,7 +257,7 @@ select_packlunch() {
     n=$[n+1]
   done < $PACKAGES2
 
-  cmd="dialog --stdout --backtitle \"${ABACO_TITLE}${VERSION}\" --checklist 'Install packages read from file ./$1:' 20 60 20 $pkglist"
+  cmd="dialog --stdout --backtitle \"${MENU_TITLE}${VERSION}\" --checklist 'Install packages read from file ./$1:' 20 60 20 $pkglist"
 
   export choices2=`eval $cmd`
 }
@@ -268,20 +268,20 @@ remote_sudo() {
   spawn  sudo -u $SUDO_USER ssh -t ${SSH_USER}@${SSH_IP} $1
   expect -exact \"password:\"
   send \"$SSH_PASSWORD\n\"
-  expect -exact \"$SSH_USER:\"
-  send \"$SSH_PASSWORD\n\"
   expect -exact \"closed.\"
-" > /dev/null
+" 
 }
 
 remote_check() {
   expect -c "
-  set timeout 500
-  spawn  sudo -u $SUDO_USER ssh -t ${SSH_USER}@${SSH_IP} $1
+  set timeout 1
+  spawn  sudo -u $SUDO_USER ssh -t ${SSH_USER}@${SSH_IP} 
   expect -exact \"Are you sure you want to continue connecting (yes/no)?\"
+  send \"yes\n\"
+  expect -exact \"password:\"
   send \"$SSH_PASSWORD\n\"
-  expect -exact \"$SSH_USER:\"
-  send \"$SSH_PASSWORD\n\"
+  expect -exact \"$\"
+  send \"exit\n\"
   expect -exact \"closed.\"
 " > /dev/null
 }
@@ -318,7 +318,7 @@ post_install_packlunch() {
 
   for choice in $choices2
   do
-    echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Setting up $choice2 package..." ${PROGRESS_HEIGHT} 70 
+    echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Setting up $choice2 package..." ${PROGRESS_HEIGHT} 70 
     
     if [ $1 -eq 0 ]; then
       case $choice in
@@ -385,15 +385,15 @@ install_packlunch() {
   if [ $1 -eq 1 ]; then
     VERSION=" - Installing remote libraries"
     SSH_IP="192.168.0.0"
-    SSH_USER="abaco"
-    SSH_PASSWORD="abaco"
+    SSH_USER="ubuntu"
+    SSH_PASSWORD="ubuntu"
     TARGET_OK=false;
     
     # need expect to be interactive
     apt-get -qqy install expect
 
     while [ $TARGET_OK = false ]; do
-      dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --form "Please enter ssh login details for TX2 target machine below. Please make sure you have exchanged keys with your target prior to attempting remote installation.:" 14 50 0 \
+      dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --form "Please enter ssh login details for TX2 target machine below. Please make sure you have exchanged keys with your target prior to attempting remote installation.:" 14 50 0 \
   "IP"       1 1  "$SSH_IP" 1 10 16 0 \
   "username" 2 1  "$SSH_USER" 2 10 20 0 \
   "password" 3 1  "$SSH_PASSWORD" 3 10 20 0 2> /tmp/ip.txt 
@@ -411,7 +411,7 @@ install_packlunch() {
       ALIVE=$?
 
       if [ ! $ALIVE -eq 0 ]; then
-        dialog --colors --backtitle "${ABACO_TITLE}${VERSION}" \
+        dialog --colors --backtitle "${MENU_TITLE}${VERSION}" \
           --yes-label "Continue" --no-label "Re-check" --yesno "\Z1WARNING: Target device $SSH_IP is not reachable!" 6 60
       fi
 
@@ -423,11 +423,14 @@ install_packlunch() {
     done
   fi
 
+  # Test remote connection (setup for first use)
+  remote_check
+
   # Download the packages first
   for choice2 in $choices2
   do
     progress=$(($progress + $ADDER))
-    echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Downloading $choice2 package..." ${PROGRESS_HEIGHT} 70 
+    echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Downloading $choice2 package..." ${PROGRESS_HEIGHT} 70 
     index=0
     line=(${install_pack[$n]})
     c=0
@@ -450,21 +453,21 @@ install_packlunch() {
     if [ $1 -eq 0 ]
     then
       progress=$(($progress + $ADDER))
-      echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Copying $choice2 into filesystem..." ${PROGRESS_HEIGHT} 70 
+      echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Copying $choice2 into filesystem..." ${PROGRESS_HEIGHT} 70 
       cp ../../${line[2]} ./opt/. 
 
       progress=$(($progress + $ADDER))
-      echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Dpkg installing $choice2..." ${PROGRESS_HEIGHT} 70 
+      echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Dpkg installing $choice2..." ${PROGRESS_HEIGHT} 70 
       chroot . /bin/bash -c "cd /opt; dpkg -i ${line[2]}" >> install.log
       # Remove that package now its installed (free up the disk space)
       chroot . /bin/bash -c "rm /opt/${line[2]}" >> install.log
     else
       progress=$(($progress + $ADDER))
-      echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Scp $choice2 into filesystem..." ${PROGRESS_HEIGHT} 70 
+      echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Scp $choice2 into filesystem..." ${PROGRESS_HEIGHT} 70 
       myscp ${line[2]} ${SSH_USER}@${SSH_IP}:.
 
       progress=$(($progress + $ADDER))
-      echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Dpkg installing $choice2..." ${PROGRESS_HEIGHT} 70 
+      echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Dpkg installing $choice2..." ${PROGRESS_HEIGHT} 70 
       remote_sudo "sudo dpkg -i ${line[2]}"
 
       # Remove that package now its installed (free up the disk space)
@@ -474,7 +477,7 @@ install_packlunch() {
   done
 
   progress=$(($progress + $ADDER))
-  echo $progress | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "apt-get update new sources..." ${PROGRESS_HEIGHT} 70
+  echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "apt-get update new sources..." ${PROGRESS_HEIGHT} 70
   if [ $1 -eq 0 ]
   then
     # Now update 
@@ -490,14 +493,14 @@ install_packlunch() {
 
 ask_open_shell() {
   cd ${ROOT}$1 > /dev/null
-  dialog --defaultno --colors --backtitle "${ABACO_TITLE}${VERSION}"  \
+  dialog --defaultno --colors --backtitle "${MENU_TITLE}${VERSION}"  \
     --yesno "Do you want to open a filesystem terminal?\n\nNOTE: This can be usefull for manually configuring your filesystem prior to flashing. $2\Zn\n" 10 60
 
   response=$?
   case $response in
-     0) cd $ROOT/Linux_for_Tegra/rootfs > /dev/null;gnome-terminal -e "bash -c \"printf 'Abaco QEMU shell for $OS\nPlease make any modifications then type exit to finish:\n\n';LANG=en_US.UTF-8 chroot . /bin/bash\"" > /dev/null
+     0) cd $ROOT/Linux_for_Tegra/rootfs > /dev/null;gnome-terminal -e "bash -c \"printf 'QEMU shell for $OS\nPlease make any modifications then type exit to finish:\n\n';LANG=en_US.UTF-8 chroot . /bin/bash\"" > /dev/null
         cd ..
-        dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "QEMU filesystem shell open..." --msgbox "Press OK when you have finished modifying the filesystem." 5 70
+        dialog --backtitle "${MENU_TITLE}${VERSION}" --title "QEMU filesystem shell open..." --msgbox "Press OK when you have finished modifying the filesystem." 5 70
         ;;
   esac
   cd - > /dev/null
@@ -514,7 +517,7 @@ setup_l4t () {
   OPEN_CUSTOM=false
   DOWNLOAD_PATH=github.com/Abaco-Systems/tx2-sample-filesystems/releases/download/R28_1;
 
-  cmd="dialog --backtitle \"${ABACO_TITLE}\"  \
+  cmd="dialog --backtitle \"${MENU_TITLE}\"  \
 --title \"Select your filesystem\" \
 --no-cancel \
 --menu \"You can use the UP/DOWN arrow keys, the first letter of the choice as a hot key.\" 16 65 6 \
@@ -556,40 +559,40 @@ Exit \"Exit to the shell\"  2> \"${INPUT}\""
      else
        FS_PATH=$ROOT
      fi
-     eval "dialog --backtitle \"${ABACO_TITLE}${VERSION}\" --title \"Please choose alternative filesystem\" --fselect $FS_PATH/ 14 70" 2> /tmp/file.txt
+     eval "dialog --backtitle \"${MENU_TITLE}${VERSION}\" --title \"Please choose alternative filesystem\" --fselect $FS_PATH/ 14 70" 2> /tmp/file.txt
           SAMPLE_FS_PACKAGE=$(cat /tmp/file.txt)
           OS="Custom Filsystem"
           if [ -d "Linux_for_Tegra" ]; then
-            echo '15' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 75 0
+            echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 75 0
             rm -rf Linux_for_Tegra/ > /dev/null
           fi
   else
         if [ -d "Linux_for_Tegra" ]; then
-          echo '15' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 75 0
+          echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 75 0
           rm -rf Linux_for_Tegra/ > /dev/null
         fi
 
-        echo '20' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" \
+        echo '20' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" \
           --gauge "wget ${SAMPLE_FS_PACKAGE}" 6 75 0
         wget -nc -q http://${DOWNLOAD_PATH}/${SAMPLE_FS_PACKAGE}
         SAMPLE_FS_PACKAGE=${ROOT}/${SAMPLE_FS_PACKAGE}
   fi
 
-  echo '40' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge "wget ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 75 0
+  echo '40' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "wget ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 75 0
   wget -nc -q http://${NVIDIA_PATH}/BSP/${L4T_RELEASE_PACKAGE}
 
-  echo '60' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 75 0
+  echo '60' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 75 0
   tar xpf ${L4T_RELEASE_PACKAGE} 
 
   cd $ROOT/Linux_for_Tegra/rootfs/ > /dev/null
   TMP=${SAMPLE_FS_PACKAGE##*/} 
-  echo '80' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${TMP}" ${PROGRESS_HEIGHT} 75 0
+  echo '80' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${TMP}" ${PROGRESS_HEIGHT} 75 0
   tar xpf ${SAMPLE_FS_PACKAGE}
 
   cd ..
-  echo '90' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Applying binaries...' ${PROGRESS_HEIGHT} 75 
+  echo '90' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Applying binaries...' ${PROGRESS_HEIGHT} 75 
   ./apply_binaries.sh > /dev/null
-  echo '95' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up QEMU emulator...' ${PROGRESS_HEIGHT} 75 
+  echo '95' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up QEMU emulator...' ${PROGRESS_HEIGHT} 75 
   cp /usr/bin/qemu-aarch64-static ./rootfs/usr/bin/. > /dev/null
 
   ## Preload the nVidia librarys Packlunch
@@ -599,11 +602,11 @@ Exit \"Exit to the shell\"  2> \"${INPUT}\""
   check_for_kernel_update
   
   cd $ROOT/Linux_for_Tegra/rootfs > /dev/null
-  echo '10' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Enabling other sources...' ${PROGRESS_HEIGHT} 70 
+  echo '10' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Enabling other sources...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "sed -i 's/# deb http/deb http/g' /etc/apt/sources.list"
-  echo '20' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating apt-get...' ${PROGRESS_HEIGHT} 70 
+  echo '20' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating apt-get...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "apt-get update > install.log"
-  echo '30' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Installing packages...' ${PROGRESS_HEIGHT} 70 
+  echo '30' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Installing packages...' ${PROGRESS_HEIGHT} 70 
   install_packlunch 0
     
   # Offer to open a QEMU chroot shell for manual probing of filesystem
@@ -615,7 +618,7 @@ Exit \"Exit to the shell\"  2> \"${INPUT}\""
   # Basic usage info (anonymous)
   wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-l4t-setup?OS=Linux4Tegra&Version=17.01Setup_Time=$SECONDS&Date=$DATE"  &> /dev/null
 
-  dialog --backtitle "${ABACO_TITLE}${VERSION}" \
+  dialog --backtitle "${MENU_TITLE}${VERSION}" \
   --colors \
   --title "Target system should be rebooting now..." \
   --msgbox "\n
@@ -635,35 +638,35 @@ setup_ubuntu_base () {
   username=/tmp/user
   password=/tmp/password
 
-  echo '10' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title 'Preparing Filesystem...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 70 0
+  echo '10' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title 'Preparing Filesystem...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 70 0
 
   if [ -d "Linux_for_Tegra" ]; then
-    echo '15' | dialog --backtitle "${ABACO_TITLE}${VERSION}"  --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 70 0
+    echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}"  --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 70 0
     rm -rf Linux_for_Tegra/
   fi
 
   if [ "$DEBOOT" = false ]; then
-    echo '20' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge "wget ${SAMPLE_BASE_FS_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
+    echo '20' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "wget ${SAMPLE_BASE_FS_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
     wget -nc -q http://cdimage.ubuntu.com/ubuntu-base/releases/16.04/release/${SAMPLE_BASE_FS_PACKAGE}
   fi
 
-  echo '40' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge "wget ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
+  echo '40' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "wget ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
   wget -nc -q http://${NVIDIA_PATH}/BSP/${L4T_RELEASE_PACKAGE}
   if [[ ! -e "/usr/bin/qemu-aarch64-static" ]]
   then
-    echo '50' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Installing qemu-user-static' ${PROGRESS_HEIGHT} 70 0
+    echo '50' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Installing qemu-user-static' ${PROGRESS_HEIGHT} 70 0
     apt-get -qqy install qemu-user-static
   fi
 
-  echo '60' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
+  echo '60' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
   sudo tar xpf ${L4T_RELEASE_PACKAGE}
   cd Linux_for_Tegra/rootfs/  > /dev/null
 
-  echo '80' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${SAMPLE_BASE_FS_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
+  echo '80' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${SAMPLE_BASE_FS_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
   tar xpf ../../${SAMPLE_BASE_FS_PACKAGE} 
 
   # Setup networking
-  echo '95' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Setting up the networking' ${PROGRESS_HEIGHT} 70 0
+  echo '95' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Setting up the networking' ${PROGRESS_HEIGHT} 70 0
 
   echo "[Match]" > ./etc/systemd/network/50-wired.network
   echo "Name=eth*" >> ./etc/systemd/network/50-wired.network
@@ -676,7 +679,7 @@ setup_ubuntu_base () {
   echo "$HOSTNAME" > ./etc/hostname
 
   # Update welcome message
-  echo '100' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Setting up banner messages..' ${PROGRESS_HEIGHT} 70 0
+  echo '100' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Setting up banner messages..' ${PROGRESS_HEIGHT} 70 0
 
   echo "#!/bin/bash" > ./etc/update-motd.d/10-help-text
   echo "printf \"\n\"" >> ./etc/update-motd.d/10-help-text
@@ -693,7 +696,7 @@ DISTRIB_DESCRIPTION=\"$OS\"" > ./etc/lsb-release
   # Get the user password
   # show an inputbox
   dialog --title "Create default user" \
-  --backtitle "${ABACO_TITLE}${VERSION}" \
+  --backtitle "${MENU_TITLE}${VERSION}" \
   --no-cancel \
   --inputbox "Enter the account username " 8 60 2>$username
 
@@ -701,7 +704,7 @@ DISTRIB_DESCRIPTION=\"$OS\"" > ./etc/lsb-release
   USER=$(cat $username)
 
   dialog --title "Create default password" \
-  --backtitle "${ABACO_TITLE}${VERSION}" \
+  --backtitle "${MENU_TITLE}${VERSION}" \
   --no-cancel \
   --clear \
   --insecure \
@@ -717,22 +720,22 @@ DISTRIB_DESCRIPTION=\"$OS\"" > ./etc/lsb-release
   PASSWORD=$(cat $password)
 
   # Setup chroot environment
-  echo '5' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up QEMU emulator...' ${PROGRESS_HEIGHT} 70 
+  echo '5' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up QEMU emulator...' ${PROGRESS_HEIGHT} 70 
   cp /usr/bin/qemu-aarch64-static ./usr/bin/. > /dev/null
-  echo '10' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up locale...' ${PROGRESS_HEIGHT} 70 
+  echo '10' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up locale...' ${PROGRESS_HEIGHT} 70 
 #  chroot . /bin/bash -c "apt-get -qqy install language-pack-en > /dev/null; sudo -u ${USER} locale-gen ${LANG} > /dev/null"
-  echo '15' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Enabling other sources...' ${PROGRESS_HEIGHT} 70 
+  echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Enabling other sources...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "sed -i 's/# deb http/deb http/g' /etc/apt/sources.list"
-  echo '20' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating apt-get...' ${PROGRESS_HEIGHT} 70 
+  echo '20' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating apt-get...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "apt-get update > /dev/null"
-  echo '40' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Installing packages...' ${PROGRESS_HEIGHT} 70 
+  echo '40' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Installing packages...' ${PROGRESS_HEIGHT} 70 
   install_packages 
   install_packlunch 0
-  echo '70' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Creating user...' ${PROGRESS_HEIGHT} 70 
+  echo '70' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Creating user...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "useradd -m -s /bin/bash ${USER} > /dev/null"
-  echo '75' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Adding user to groups...' ${PROGRESS_HEIGHT} 70 
+  echo '75' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Adding user to groups...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "usermod -a -G sudo,adm,tty,video ${USER} > /dev/null"
-  echo '80' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Changing password...' ${PROGRESS_HEIGHT} 70 
+  echo '80' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Changing password...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "echo \"${USER}:${PASSWORD}\" | chpasswd > /dev/null"
 
   # Cleanup password files
@@ -740,7 +743,7 @@ DISTRIB_DESCRIPTION=\"$OS\"" > ./etc/lsb-release
   rm $password > /dev/null
 
   # Add eth0 startup script
-  echo '85' | dialog --backtitle "${ABACO_TITLE}${UBUNTU_BASE}" --title "${CONFIGURE}" --gauge 'Configuring DHCP...' ${PROGRESS_HEIGHT} 70 
+  echo '85' | dialog --backtitle "${MENU_TITLE}${UBUNTU_BASE}" --title "${CONFIGURE}" --gauge 'Configuring DHCP...' ${PROGRESS_HEIGHT} 70 
   echo "#!/bin/bash" > ./home/${USER}/eth0.sh
   echo "if [ \"\$EUID\" -ne 0 ]" >> ./home/${USER}/eth0.sh
   echo "  then echo \"Please run as root\"" >> ./home/${USER}/eth0.sh
@@ -812,13 +815,13 @@ echo "Done..."
 
   cd $ROOT/Linux_for_Tegra/rootfs  > /dev/null
   
-  echo '85' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Modifying .bashrc...' ${PROGRESS_HEIGHT} 70 
+  echo '85' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Modifying .bashrc...' ${PROGRESS_HEIGHT} 70 
   echo "
 export PATH=$PATH:/usr/local/cuda-8.0/bin
 export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-8.0/lib64:/usr/local/lib64
 " >> ./home/${USER}/.bashrc 
 
-  echo '90' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating networking...' ${PROGRESS_HEIGHT} 70 
+  echo '90' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating networking...' ${PROGRESS_HEIGHT} 70 
   mkdir ./etc/network > /dev/null
   echo "auto lo
 iface lo inet loopback
@@ -832,7 +835,7 @@ iface eth1 inet dhcp
 allow-hotplug eth2
 iface eth2 inet dhcp" > ./etc/network/interface
   
-  echo '92' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Tidyup...' ${PROGRESS_HEIGHT} 70 
+  echo '92' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Tidyup...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "mkdir /usr/local/cuda"
   chroot . /bin/bash -c "ln -s /usr/local/cuda-8.0/targets/aarch64-linux/include /usr/local/cuda/include"
   chroot . /bin/bash -c "ln -s /usr/local/cuda-8.0/bin /usr/local/cuda/bin"
@@ -843,7 +846,7 @@ iface eth2 inet dhcp" > ./etc/network/interface
   ask_open_shell /Linux_for_Tegra/rootfs
 
   cd $ROOT/Linux_for_Tegra > /dev/null
-  echo '95' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Applying binaries...' ${PROGRESS_HEIGHT} 70 
+  echo '95' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Applying binaries...' ${PROGRESS_HEIGHT} 70 
   ./apply_binaries.sh >> /dev/null
   cd $ROOT/Linux_for_Tegra/rootfs > /dev/null
   chroot . /bin/bash -c "mv /home/nvidia/* /home/${USER}/.;rm -rf /home/nvidia;rm -rf /home/ubuntu"
@@ -857,7 +860,7 @@ iface eth2 inet dhcp" > ./etc/network/interface
   # Basic usage info (anonymous)
   wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-base-setup?OS=Ubuntu_Base&Version=16.04&Setup_Time=$SECONDS&Date=$DATE"  &> /dev/null
 
-  dialog --backtitle "${ABACO_TITLE}${VERSION}" \
+  dialog --backtitle "${MENU_TITLE}${VERSION}" \
   --title "Target system should be rebooting now..." \
   --colors \
   --msgbox "\n
@@ -906,12 +909,12 @@ deboot_buildfs () {
   fi
 
   if $DEBOOT_EXISITS ; then
-    echo '40' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Installing debootstrap...' ${PROGRESS_HEIGHT} 70 
+    echo '40' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Installing debootstrap...' ${PROGRESS_HEIGHT} 70 
     apt-get -qqy install debootstrap  > /dev/null
-    echo '70' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Removing old files...' ${PROGRESS_HEIGHT} 70 
+    echo '70' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Removing old files...' ${PROGRESS_HEIGHT} 70 
     rm -rf ./debootstrap  > /dev/null 
 
-    echo '90' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Setting up...' ${PROGRESS_HEIGHT} 70 
+    echo '90' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Setting up...' ${PROGRESS_HEIGHT} 70 
     mkdir ./debootstrap  > /dev/null 
     export ARCH=arm64
     
@@ -927,21 +930,21 @@ deboot_buildfs () {
             --variant=minbase \
             --include=nano \
             $UBUNTU_RELEASE \
-            ./debootstrap/rootfs | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "debootstrap first stage ($UBUNTU_RELEASE)..."  25 85
+            ./debootstrap/rootfs | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "debootstrap first stage ($UBUNTU_RELEASE)..."  25 85
     cp /usr/bin/qemu-aarch64-static ${ROOT}/debootstrap/rootfs/usr/bin > /dev/null
     cd ${ROOT}/debootstrap/rootfs  > /dev/null
-    chroot . /bin/bash -c "/debootstrap/debootstrap --second-stage" | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "debootstrap second stage ($UBUNTU_RELEASE)..."  25 85
+    chroot . /bin/bash -c "/debootstrap/debootstrap --second-stage" | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "debootstrap second stage ($UBUNTU_RELEASE)..."  25 85
 
     ask_open_shell /debootstrap/rootfs
 
     # When done create a filesystem archive
-    tar -cvjSf $SAMPLE_BASE_FS_PACKAGE * | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Creating archive ${SAMPLE_BASE_FS_PACKAGE} ($UBUNTU_RELEASE)..."  25 85
+    tar -cvjSf $SAMPLE_BASE_FS_PACKAGE * | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Creating archive ${SAMPLE_BASE_FS_PACKAGE} ($UBUNTU_RELEASE)..."  25 85
     mv $SAMPLE_BASE_FS_PACKAGE $ROOT/.  > /dev/null
     cd -  > /dev/null
   fi
 
   # Now configure and flash the image
-  dialog --colors --backtitle "${ABACO_TITLE}${VERSION}"  \
+  dialog --colors --backtitle "${MENU_TITLE}${VERSION}"  \
     --timeout $TIMEOUT --yesno "Do you want configure and flash this image now?\n" 6 60
 
   response=$?
@@ -953,7 +956,7 @@ deboot_buildfs () {
               ;;
   esac
 
-  dialog --backtitle "${ABACO_TITLE}${VERSION}" \
+  dialog --backtitle "${MENU_TITLE}${VERSION}" \
 --title "Finished flashing, setup complete..." \
 --colors \
 --msgbox "The Debootstrap file system setup complete, minimal deboot image was saved:\n\n    \Z6Tegra_Linux_Sample-Root-Filesystem_${UBUNTU_RELEASE}_aarch64.tbz2\Zn" 8 70
@@ -995,20 +998,20 @@ rebuild_kernel() {
   BUILD="Configuring host build system"
 
   # Get the kernel source for our board
-  echo '10' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Removing old sources...' ${PROGRESS_HEIGHT} 70 
+  echo '10' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Removing old sources...' ${PROGRESS_HEIGHT} 70 
   rm -rf install
   rm -rf kernel
   rm -rf sources
   rm -rf nvl4t_docs
   rm -rf build
   rm -rf hardware
-  echo '15' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Getting kernel sources...' ${PROGRESS_HEIGHT} 70 
+  echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Getting kernel sources...' ${PROGRESS_HEIGHT} 70 
   wget -nc -q http://${NVIDIA_PATH}/BSP/${L4T_SOURCES}
-  echo '30' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Getting toolchain...' ${PROGRESS_HEIGHT} 70 
+  echo '30' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Getting toolchain...' ${PROGRESS_HEIGHT} 70 
   wget -nc -q http://${NVIDIA_PATH}/BSP/${L4T_COMPILER}
-  echo '50' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Getting documentation...' ${PROGRESS_HEIGHT} 70 
+  echo '50' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Getting documentation...' ${PROGRESS_HEIGHT} 70 
   wget -nc -q http://${NVIDIA_PATH}/Docs/${L4T_DOCS}
-  echo '60' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Unpacking sources archive...' ${PROGRESS_HEIGHT} 70 
+  echo '60' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Unpacking sources archive...' ${PROGRESS_HEIGHT} 70 
   case $REL in
   R27_1)
     tar xjf ${L4T_SOURCES} ${KERNEL_SOURCES}
@@ -1018,11 +1021,11 @@ rebuild_kernel() {
     ;;
   esac
 
-  echo '70' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Unpacking compiler archive...' ${PROGRESS_HEIGHT} 70 
+  echo '70' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Unpacking compiler archive...' ${PROGRESS_HEIGHT} 70 
   tar xfz ${L4T_COMPILER}
-  echo '80' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Unpacking documentation archive...' ${PROGRESS_HEIGHT} 70 
+  echo '80' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Unpacking documentation archive...' ${PROGRESS_HEIGHT} 70 
   tar xf ${L4T_DOCS}
-  echo '90' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Unpacking kernel archive...' ${PROGRESS_HEIGHT} 70 
+  echo '90' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${BUILD}" --gauge 'Unpacking kernel archive...' ${PROGRESS_HEIGHT} 70 
   case $REL in
   R27_1)
     tar xjf ${KERNEL_SOURCES}
@@ -1033,7 +1036,7 @@ rebuild_kernel() {
   esac
 
   if [ -f ${L4T_DOCS} ]; then
-    dialog --colors --defaultno --backtitle "${ABACO_TITLE}${VERSION}"  \
+    dialog --colors --defaultno --backtitle "${MENU_TITLE}${VERSION}"  \
       --yesno "Do you want to open the kernel documentation?\n" 6 60
 
     response=$?
@@ -1045,7 +1048,7 @@ rebuild_kernel() {
   case $REL in
   R27_1)
     cd $ROOT/$KERNEL > /dev/null
-    dialog --colors --defaultno --clear --backtitle "${ABACO_TITLE}${VERSION}"  \
+    dialog --colors --defaultno --clear --backtitle "${MENU_TITLE}${VERSION}"  \
       --yesno "Do you want to patch the kernel?\n\nNOTE: Adds in support for Intel x540 10GigE\n" 8 60 
 
     response=$?
@@ -1071,21 +1074,21 @@ CONFIG_IXGBE=y
 #  BOX_TYPE=--progressbox
   BOX_TYPE=--programbox
 
-  make -j$CORES O=$TEGRA_KERNEL_OUT ${CONFIG} 2> /dev/null | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building ${CONFIG}..."  25 85
+  make -j$CORES O=$TEGRA_KERNEL_OUT ${CONFIG} 2> /dev/null | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building ${CONFIG}..."  25 85
 
-  dialog --colors --defaultno --backtitle "${ABACO_TITLE}${VERSION}"  \
+  dialog --colors --defaultno --backtitle "${MENU_TITLE}${VERSION}"  \
     --yesno "Do you want to run menuconfig?\n" 6 60
 
   response=$?
   MENUCONFIG="Setting up Menuconfig"
   case $response in
-     0) echo '50' | dialog --backtitle "${ABACO_TITLE}${VERSION}" --title "${MENUCONFIG}" --gauge 'Installing libcursers...' ${PROGRESS_HEIGHT} 70 
+     0) echo '50' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${MENUCONFIG}" --gauge 'Installing libcursers...' ${PROGRESS_HEIGHT} 70 
         sudo apt-get -qqy install libncurses5-dev > /dev/null  # cant build menusystem without this on 16.04 LTS 
         make menuconfig KCONFIG_CONFIG=$TEGRA_KERNEL_OUT/.config 2> /dev/null
         ;;
   esac
 
-  dialog --backtitle "${ABACO_TITLE}${VERSION}" \
+  dialog --backtitle "${MENU_TITLE}${VERSION}" \
 --title "Build Environment" \
 --colors \
 --ok-label "Build Kernel" \
@@ -1096,11 +1099,11 @@ CONFIG=$CONFIG\n
 KERNEL=/$KERNEL\n" 10 70
 
   KBUILD_START=$SECONDS
-  make -j$CORES O=$TEGRA_KERNEL_OUT zImage 2> /dev/null | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building zImage..."  25 85
-  make -j$CORES O=$TEGRA_KERNEL_OUT dtbs 2> /dev/null | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building dtbs..."  25 85 
-  make -j$CORES O=$TEGRA_KERNEL_OUT modules 2> /dev/null  | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building modules..."  25 85  
+  make -j$CORES O=$TEGRA_KERNEL_OUT zImage 2> /dev/null | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building zImage..."  25 85
+  make -j$CORES O=$TEGRA_KERNEL_OUT dtbs 2> /dev/null | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building dtbs..."  25 85 
+  make -j$CORES O=$TEGRA_KERNEL_OUT modules 2> /dev/null  | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building modules..."  25 85  
   mkdir $TEGRA_KERNEL_OUT/modules
-  make -j$CORES O=$TEGRA_KERNEL_OUT modules_install INSTALL_MOD_PATH=./modules | dialog --colors --backtitle "${ABACO_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Installing Modules..."  25 85
+  make -j$CORES O=$TEGRA_KERNEL_OUT modules_install INSTALL_MOD_PATH=./modules | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Installing Modules..."  25 85
   cd $TEGRA_KERNEL_OUT/modules > /dev/null
   tar --owner root --group root -cjf kernel_supplements.tbz2 lib/modules > /dev/null
   cd - > /dev/null
@@ -1110,7 +1113,7 @@ KERNEL=/$KERNEL\n" 10 70
   # Basic usage info (anonymous)
   wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-kernel-setup?OS=Ubuntu_Base&Version=16.04.2&Setup_Time=$SECONDS&Build_Time=$KBUILD_TIME&Date=$DATE"  &> /dev/null
 
-  dialog --backtitle "${ABACO_TITLE}${VERSION}" \
+  dialog --backtitle "${MENU_TITLE}${VERSION}" \
 --title "Compilation Complete (${SECONDS}s)" \
 --colors \
 --ok-label "Quit" \
@@ -1131,13 +1134,13 @@ To finish desktop installation please run ./complete_desktop_install.sh on targe
 backup_image() {
   cd ./Linux_for_Tegra/bootloader
 
-  eval "dialog --backtitle \"${ABACO_TITLE} - Backup\" --title \"Please choose a backup file\" --fselect $HOME/ 14 48" 2> /tmp/file.txt
+  eval "dialog --backtitle \"${MENU_TITLE} - Backup\" --title \"Please choose a backup file\" --fselect $HOME/ 14 48" 2> /tmp/file.txt
   FILE=$(cat /tmp/file.txt)
 
   check_connected 
   
   ./tegraflash.py --bl cboot.bin --applet nvtboot_recovery.bin --chip 0x21 --cmd "read APP ${FILE}" 2> /dev/null | \
-    dialog --colors --backtitle "${ABACO_TITLE} - Backup" --programbox "Creating backup image ${FILE}..."  25 85
+    dialog --colors --backtitle "${MENU_TITLE} - Backup" --programbox "Creating backup image ${FILE}..."  25 85
 #  cd - > /dev/null
 #  clear
   echo "./tegraflash.py --bl cboot.bin --applet mb1_recovery_prod.bin --chip 0x18 --cmd \"read APP ${FILE}\""
@@ -1145,13 +1148,13 @@ backup_image() {
 
 restore_image() {
   cd ./Linux_for_Tegra/bootloader
-  eval "dialog --backtitle \"${ABACO_TITLE} - Restore\" --title \"Please choose a backup file\" --fselect $HOME/ 14 48" 2> /tmp/file.txt
+  eval "dialog --backtitle \"${MENU_TITLE} - Restore\" --title \"Please choose a backup file\" --fselect $HOME/ 14 48" 2> /tmp/file.txt
   FILE=$(cat /tmp/file.txt)
 
   check_connected 
 
   sudo ./tegraflash.py --bl cboot.bin --applet mb1_recovery_prod.bin --chip 0x18 --cmd "write APP ${FILE}"  2> /dev/null | \
-    dialog --colors --backtitle "${ABACO_TITLE} - Restore" --programbox "Restoring backup image ${FILE}..."  25 85
+    dialog --colors --backtitle "${MENU_TITLE} - Restore" --programbox "Restoring backup image ${FILE}..."  25 85
   cd - > /dev/null
   clear
 }
@@ -1159,7 +1162,7 @@ restore_image() {
 remote_install() {
   select_packlunch $PACKLUNCH_FILENAME; 
   install_packlunch 1; 
-  dialog --backtitle "${ABACO_TITLE}${VERSION}" \
+  dialog --backtitle "${MENU_TITLE}${VERSION}" \
 --title "Remote packlunch install complete" \
 --colors \
 --ok-label "Quit" \
@@ -1233,7 +1236,7 @@ fi
 
 check_setup
 
-dialog --backtitle "${ABACO_TITLE}" \
+dialog --backtitle "${MENU_TITLE}" \
 --title "nVidia TX2 device setup tool" \
 --colors \
 --ok-label "Install R28.1" \
@@ -1287,7 +1290,7 @@ INPUT=/tmp/menu.sh.$$
 # Not supported
 # arch \"Install the latest version of archlinux (Alpha)\" \
 
-cmd="dialog --backtitle \"${ABACO_TITLE}\"  \
+cmd="dialog --backtitle \"${MENU_TITLE}\"  \
 --title \"Select your filesystem\" \
 --no-cancel \
 --menu \"You can use the UP/DOWN arrow keys, the first letter of the choice as a hot key.\" 17 65 8 \
