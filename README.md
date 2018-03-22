@@ -10,6 +10,13 @@ As this script will install additional depencancies superuser password is reques
 ```
 sudo abaco-flash-tegra.sh
 ```
+There is also a flashing only tool with a cutdown interface called ezflash. To run this:
+```
+sudo ezflash.sh
+```
+This uses binary file systems that have been pre-built to save time for quick tests see images [here](https://github.com/Abaco-Systems/jetson-tx2-sample-filesystems). 
+
+## Screenshots
 ![Welcome Screen](/images/packlunch-shot01.png)
 **Welcome screen where you can select the distribution you wish to work with**
 
