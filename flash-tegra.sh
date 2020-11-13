@@ -1,8 +1,8 @@
 #!/bin/bash
 ##
-## Abaco Systems - GVC1000 flashing wizard (Unofficial)
+## Rheinemtall Defence Flashing tool
 ##
-## This script is an interactive installer for the GVC1000 and Jetson TX2 Evaluation 
+## This script is an interactive installer for the Jetson NX and AGX Evaluation 
 ## boards. It is provided for refferance only and comes with absolutly no warrenty 
 ## or support. 
 ##
@@ -24,15 +24,15 @@ TIMEOUT=30
 DEBOOT=false
 DATE=$(date "+%s")
 CORES=$(nproc --all)
-USER=abaco
-PASSWORD=abaco
+USER=rnt
+PASSWORD=welcome1
 BOARD=jetson-tx2
 RELEASE="unknown";
-UBUNTU_RELEASE=xenial
-UBUNTU_RELEASE_VERSION=16.04.02
-MENU_TITLE="Nvidia TX2 - System Setup"
+UBUNTU_RELEASE=bionic
+UBUNTU_RELEASE_VERSION=18.04
+MENU_TITLE="Jetson - System Setup"
 OS="Ubuntu Base 16.04.2"
-UBUNTU_BASE=" - Ubuntu Base 16.04.2"
+UBUNTU_BASE=" - Ubuntu Base 18.04"
 PREPARE="Preparing Filesystem..."
 CONFIGURE="Configuring Filesystem..."
 DOCUMENTATION="https://wiki.ubuntu.com/Base"
@@ -44,6 +44,14 @@ KERNEL_PATH=kernel/kernel-4.4/build/arch/arm64/boot
 KERNEL_IMAGE=kernel/kernel-4.4/build/arch/arm64/boot/Image
 HOSTNAME=tx2
 DEFAULT_IP=192.168.1.1
+
+
+wait()
+{
+  ## Remove comment below to see output after dialogues.
+  # read -p "Press enter to continue"
+  0
+}
 
 select_release()
 {
@@ -61,6 +69,7 @@ select_release()
     L4T_DOCS=Tegra_Linux_Driver_Package_Documents_R27.1.tar
     KERNEL_SOURCES_DIR=""
     KERNEL_SOURCES=kernel_src.tbz2
+    SAMPLE_BASE_FS_PACKAGE=ubuntu-base-16.04.2-base-arm64.tar.gz
     ;;
   R28_1)
     # http://developer2.download.nvidia.com/embedded/L4T/r28_Release_v1.0/BSP/source_release.tbz2
@@ -74,6 +83,7 @@ select_release()
     L4T_DOCS=NVIDIA_Tegra_Linux_Driver_Package.tar
     KERNEL_SOURCES_DIR=sources
     KERNEL_SOURCES=kernel_src-tx2.tbz2
+    SAMPLE_BASE_FS_PACKAGE=ubuntu-base-16.04.2-base-arm64.tar.gz
     ;;
   R28_2) # TODO: NOT YET TESTED
     # http://developer2.download.nvidia.com/embedded/L4T/r28_Release_v2.0/BSP/source_release.tbz2
@@ -87,18 +97,32 @@ select_release()
     L4T_DOCS=NVIDIA_Tegra_Linux_Driver_Package.tar
     KERNEL_SOURCES_DIR=sources
     KERNEL_SOURCES=kernel_src-tx2.tbz2
+    SAMPLE_BASE_FS_PACKAGE=ubuntu-base-16.04.2-base-arm64.tar.gz
+    ;;
+  R32_4_4) # TODO: NOT YET TESTED
+    # http://developer.download.nvidia.com/embedded/L4T/r32_Release_v4.4/r32_Release_v4.4-GMC3/T186/source_release.tbz2
+    RELEASE="R32.4.4";
+    NVIDIA_PATH=developer.download.nvidia.com/embedded/L4T/r32_Release_v4.4/r32_Release_v4.4-GMC3/T186/
+    SAMPLE_FS_PACKAGE=Tegra_Linux_Sample-Root-Filesystem_R32.4.4_aarch64.tbz2
+    JETPACK_VERSION="4.4.1"
+    L4T_RELEASE_PACKAGE=Tegra186_Linux_R32.4.4_aarch64.tbz2
+    L4T_SOURCES=source_release.tbz2
+    L4T_COMPILER=gcc-4.8.5-aarch64.tgz
+    L4T_DOCS=NVIDIA_Tegra_Linux_Driver_Package.tar
+    KERNEL_SOURCES_DIR=sources
+    KERNEL_SOURCES=kernel_src-tx2.tbz2
+    SAMPLE_BASE_FS_PACKAGE=ubuntu-base-18.04.5-base-amd64.tar.gz
     ;;
   esac
 
   # Common downloads  
-  SAMPLE_BASE_FS_PACKAGE=ubuntu-base-16.04.2-base-arm64.tar.gz
   PACKLUNCH_FILENAME="packlunch-${RELEASE}.cfg"
 }
 
 cleanup() {
-  rm -f /tmp/menu.sh* > /dev/null
-  rm -f /tmp/build.txt > /dev/null
-  rm -f /tmp/file.txt > /dev/null
+  rm -f /tmp/menu.sh* &>> install.log
+  rm -f /tmp/build.txt &>> install.log
+  rm -f /tmp/file.txt &>> install.log
 }
 
 abort() {
@@ -109,7 +133,7 @@ abort() {
 }
 
 check_connected() {
-  lsusb | grep -i nvidia  > /dev/null
+  lsusb | grep -i nvidia  &>> install.log
   NVIDIA_READY=$?
   if ((${NVIDIA_READY} > 0)); then
     NVIDIA_READY="\Z1WARNING: Could not find nVidia device on USB. Please run 'lsusb' and make sure your device is connected to the host before continuing.\Z0\n"
@@ -122,19 +146,19 @@ check_connected() {
 }
 
 clean() {
-  cd ${ROOT}/Linux_for_Tegra/rootfs > /dev/null
-  chroot . /bin/bash -c "apt-get clean > /dev/null"
+  cd ${ROOT}/Linux_for_Tegra/rootfs &>> install.log
+  chroot . /bin/bash -c "apt-get clean &>> install.log"
   chroot . /bin/bash -c "rm -rf /var/lib/apt/lists/*"
   chroot . /bin/bash -c "rm -f /usr/bin/qemu-aarch64-static"
-  cd - > /dev/null
+  cd - &>> install.log
 }
 
 flash_filesystem() {
-  cd ${ROOT}/Linux_for_Tegra  > /dev/null
+  cd ${ROOT}/Linux_for_Tegra  &>> install.log
 
   FLASH_OK=false;
   while [ $FLASH_OK = false ]; do
-    lsusb | grep -i nvidia > /dev/null
+    lsusb | grep -i nvidia &>> install.log
 
     NVIDIA_READY=$?
     if [ ${NVIDIA_READY} -gt 0 ]; then
@@ -149,16 +173,16 @@ flash_filesystem() {
     response=$?
     case $response in
        0) clean; # Last thing we do is clean the filesystem
-          sudo ./flash.sh $1 ${BOARD} mmcblk0p1 2> /dev/null | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for flashing to complete\Z0" --exit-label 'Exit when flash completes' --programbox "Flashing target..." 25 85 2> /dev/null; FLASH_OK=true;;
+          sudo ./flash.sh $1 ${BOARD} mmcblk0p1 2&>> install.log | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for flashing to complete\Z0" --exit-label 'Exit when flash completes' --programbox "Flashing target..." 25 85 2&>> install.log; FLASH_OK=true;;
        1) abort; clear; exit -1;;
        255) echo "[ESC] key pressed.";;
     esac
    done
-  cd - > /dev/null
+  cd - &>> install.log
 }
 
 check_for_kernel_update() {
-  cd ${ROOT}/Linux_for_Tegra  > /dev/null
+  cd ${ROOT}/Linux_for_Tegra  &>> install.log
   if [ -f ../$KERNEL_PATH/Image ]; then
     d=$(stat -c%y ../$KERNEL_PATH/Image | cut -d'.' -f1)
     dialog --colors --backtitle "${MENU_TITLE}${VERSION}"  \
@@ -166,15 +190,15 @@ check_for_kernel_update() {
 
     response=$?
     case $response in
-       0) cp $ROOT/$KERNEL_PATH/Image ./kernel/Image > /dev/null
-          cp $ROOT/$KERNEL_PATH/zImage ./kernel/zImage > /dev/null
-          cp $ROOT/$KERNEL/$TEGRA_KERNEL_OUT/modules/kernel_supplements.tbz2 ./kernel/kernel_supplements.tbz2 > /dev/null
-          cp $ROOT/$KERNEL/$TEGRA_KERNEL_OUT/arch/arm64/boot/dts/* ./kernel/dtb > /dev/null
+       0) cp $ROOT/$KERNEL_PATH/Image ./kernel/Image &>> install.log
+          cp $ROOT/$KERNEL_PATH/zImage ./kernel/zImage &>> install.log
+          cp $ROOT/$KERNEL/$TEGRA_KERNEL_OUT/modules/kernel_supplements.tbz2 ./kernel/kernel_supplements.tbz2 &>> install.log
+          cp $ROOT/$KERNEL/$TEGRA_KERNEL_OUT/arch/arm64/boot/dts/* ./kernel/dtb &>> install.log
           ;;
     esac
   fi
 
-  cd - > /dev/null
+  cd - &>> install.log
 }
 
 choices=""
@@ -228,7 +252,7 @@ install_packages() {
   do
     progress=$(($progress + 1))
     echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Installing $choice package..." ${PROGRESS_HEIGHT} 70 
-    chroot . /bin/bash -c "DEBIAN_FRONTEND=noninteractive apt-get -qqy install --no-install-recommends $choice" &>> install.log
+    chroot . /bin/bash -c "DEBIAN_FRONTEND=noninteractive apt-get -qqy install --no-install-recommends $choice" &>> de
   done
 
   progress=$(($progress + 1))
@@ -283,7 +307,7 @@ remote_check() {
   expect -exact \"$\"
   send \"exit\n\"
   expect -exact \"closed.\"
-" > /dev/null
+" &>> install.log
 }
 
 myscp() {
@@ -294,7 +318,7 @@ echo "sudo -u $SUDO_USER scp $1 $2"
   expect -exact \"password:\"
   send \"$SSH_PASSWORD\n\"
   expect -exact \"closed.\"
-" > /dev/null
+" &>> install.log
 }
 
 post_install_packlunch() {
@@ -393,6 +417,7 @@ install_packlunch() {
     apt-get -qqy install expect
 
     while [ $TARGET_OK = false ]; do
+      wait
       dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --form "Please enter ssh login details for TX2 target machine below. Please make sure you have exchanged keys with your target prior to attempting remote installation.:" 14 50 0 \
   "IP"       1 1  "$SSH_IP" 1 10 16 0 \
   "username" 2 1  "$SSH_USER" 2 10 20 0 \
@@ -407,7 +432,7 @@ install_packlunch() {
       SSH_USER=$(sed -n '2p' /tmp/ip.txt)
       SSH_PASSWORD=$(sed -n '3p' /tmp/ip.txt)
 
-      ping $SSH_IP -c 1 -w 1 > /dev/null
+      ping $SSH_IP -c 1 -w 1 &>> install.log
       ALIVE=$?
 
       if [ ! $ALIVE -eq 0 ]; then
@@ -448,25 +473,29 @@ install_packlunch() {
     line=(${install_pack[$index]})
 
     # Keep downloaded files in the root directory so they persist if the filesystem is rebuilt
-    wget -nc -P$KEEP_PATH ${line[1]}/${line[2]} &> /dev/null
+    wget -nc -P$KEEP_PATH ${line[1]}/${line[2]} &>> install.log
 
     if [ $1 -eq 0 ]
     then
       progress=$(($progress + $ADDER))
+      wait
       echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Copying $choice2 into filesystem..." ${PROGRESS_HEIGHT} 70 
       cp ../../${line[2]} ./opt/. 
 
       progress=$(($progress + $ADDER))
+      wait
       echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Dpkg installing $choice2..." ${PROGRESS_HEIGHT} 70 
       chroot . /bin/bash -c "cd /opt; dpkg -i ${line[2]}" >> install.log
       # Remove that package now its installed (free up the disk space)
       chroot . /bin/bash -c "rm /opt/${line[2]}" >> install.log
     else
       progress=$(($progress + $ADDER))
+      wait
       echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Scp $choice2 into filesystem..." ${PROGRESS_HEIGHT} 70 
       myscp ${line[2]} ${SSH_USER}@${SSH_IP}:.
 
       progress=$(($progress + $ADDER))
+      wait
       echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "Dpkg installing $choice2..." ${PROGRESS_HEIGHT} 70 
       remote_sudo "sudo dpkg -i ${line[2]}"
 
@@ -477,6 +506,7 @@ install_packlunch() {
   done
 
   progress=$(($progress + $ADDER))
+  wait
   echo $progress | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge "apt-get update new sources..." ${PROGRESS_HEIGHT} 70
   if [ $1 -eq 0 ]
   then
@@ -492,18 +522,19 @@ install_packlunch() {
 }
 
 ask_open_shell() {
-  cd ${ROOT}$1 > /dev/null
+  cd ${ROOT}$1 &>> install.log
   dialog --defaultno --colors --backtitle "${MENU_TITLE}${VERSION}"  \
     --yesno "Do you want to open a filesystem terminal?\n\nNOTE: This can be usefull for manually configuring your filesystem prior to flashing. $2\Zn\n" 10 60
 
   response=$?
   case $response in
-     0) cd $ROOT/Linux_for_Tegra/rootfs > /dev/null;gnome-terminal -e "bash -c \"printf 'QEMU shell for $OS\nPlease make any modifications then type exit to finish:\n\n';LANG=en_US.UTF-8 chroot . /bin/bash\"" > /dev/null
+     0) cd ${ROOT}$1 &>> install.log;gnome-terminal -- bash -c "printf 'QEMU shell for $OS\nPlease make any modifications then type 'exit' to finish:\n\n';chroot . /bin/bash" &>> install.log
         cd ..
+        wait
         dialog --backtitle "${MENU_TITLE}${VERSION}" --title "QEMU filesystem shell open..." --msgbox "Press OK when you have finished modifying the filesystem." 5 70
         ;;
   esac
-  cd - > /dev/null
+  cd - &>> install.log
 }
 
 #
@@ -564,12 +595,12 @@ Exit \"Exit to the shell\"  2> \"${INPUT}\""
           OS="Custom Filsystem"
           if [ -d "Linux_for_Tegra" ]; then
             echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 75 0
-            rm -rf Linux_for_Tegra/ > /dev/null
+            rm -rf Linux_for_Tegra/ &>> install.log
           fi
   else
         if [ -d "Linux_for_Tegra" ]; then
           echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 75 0
-          rm -rf Linux_for_Tegra/ > /dev/null
+          rm -rf Linux_for_Tegra/ &>> install.log
         fi
 
         echo '20' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" \
@@ -584,16 +615,16 @@ Exit \"Exit to the shell\"  2> \"${INPUT}\""
   echo '60' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 75 0
   tar xpf ${L4T_RELEASE_PACKAGE} 
 
-  cd $ROOT/Linux_for_Tegra/rootfs/ > /dev/null
+  cd $ROOT/Linux_for_Tegra/rootfs/ &>> install.log
   TMP=${SAMPLE_FS_PACKAGE##*/} 
   echo '80' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${TMP}" ${PROGRESS_HEIGHT} 75 0
   tar xpf ${SAMPLE_FS_PACKAGE}
 
   cd ..
   echo '90' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Applying binaries...' ${PROGRESS_HEIGHT} 75 
-  ./apply_binaries.sh > /dev/null
+  ./apply_binaries.sh &>> install.log
   echo '95' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up QEMU emulator...' ${PROGRESS_HEIGHT} 75 
-  cp /usr/bin/qemu-aarch64-static ./rootfs/usr/bin/. > /dev/null
+  cp /usr/bin/qemu-aarch64-static ./rootfs/usr/bin/. &>> install.log
 
   ## Preload the nVidia librarys Packlunch
   select_packlunch $PACKLUNCH_FILENAME
@@ -601,7 +632,7 @@ Exit \"Exit to the shell\"  2> \"${INPUT}\""
   # If the kernel has been rebuilt offer to copy the Image in
   check_for_kernel_update
   
-  cd $ROOT/Linux_for_Tegra/rootfs > /dev/null
+  cd $ROOT/Linux_for_Tegra/rootfs &>> install.log
   echo '10' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Enabling other sources...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "sed -i 's/# deb http/deb http/g' /etc/apt/sources.list"
   echo '20' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating apt-get...' ${PROGRESS_HEIGHT} 70 
@@ -616,7 +647,7 @@ Exit \"Exit to the shell\"  2> \"${INPUT}\""
   flash_filesystem
 
   # Basic usage info (anonymous)
-  wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-l4t-setup?OS=Linux4Tegra&Version=17.01Setup_Time=$SECONDS&Date=$DATE"  &> /dev/null
+  wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-l4t-setup?OS=Linux4Tegra&Version=17.01Setup_Time=$SECONDS&Date=$DATE"  &&>> install.log
 
   dialog --backtitle "${MENU_TITLE}${VERSION}" \
   --colors \
@@ -638,33 +669,38 @@ setup_ubuntu_base () {
   username=/tmp/user
   password=/tmp/password
 
-  echo '10' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title 'Preparing Filesystem...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 70 0
-
   if [ -d "Linux_for_Tegra" ]; then
-    echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}"  --title 'Removing old files...' --gauge 'Removing old Files.' ${PROGRESS_HEIGHT} 70 0
+    echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}"  --title 'Removing old files...' --gauge 'Removing old Files, Linux_for_Tegra.' ${PROGRESS_HEIGHT} 70 0
     rm -rf Linux_for_Tegra/
   fi
 
+  wait
   if [ "$DEBOOT" = false ]; then
     echo '20' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "wget ${SAMPLE_BASE_FS_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
-    wget -nc -q http://cdimage.ubuntu.com/ubuntu-base/releases/16.04/release/${SAMPLE_BASE_FS_PACKAGE}
+    wget -nc -q http://cdimage.ubuntu.com/ubuntu-base/releases/18.04/release/${SAMPLE_BASE_FS_PACKAGE} &>> install.log
+    echo "http://cdimage.ubuntu.com/ubuntu-base/releases/18.04/release/${SAMPLE_BASE_FS_PACKAGE}"
   fi
 
+  wait
   echo '40' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "wget ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
-  wget -nc -q http://${NVIDIA_PATH}/BSP/${L4T_RELEASE_PACKAGE}
+  wget -nc -q http://${NVIDIA_PATH}/${L4T_RELEASE_PACKAGE}
   if [[ ! -e "/usr/bin/qemu-aarch64-static" ]]
   then
+    wait
     echo '50' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Installing qemu-user-static' ${PROGRESS_HEIGHT} 70 0
-    apt-get -qqy install qemu-user-static
+    apt-get -qqy install qemu-user-static &>> install.log
   fi
 
+  wait
   echo '60' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${L4T_RELEASE_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
-  sudo tar xpf ${L4T_RELEASE_PACKAGE}
-  cd Linux_for_Tegra/rootfs/  > /dev/null
+  sudo tar xpf ${L4T_RELEASE_PACKAGE} &>> install.log
+  cd Linux_for_Tegra/rootfs/  &>> install.log
 
+  wait
   echo '80' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge "Expanding ${SAMPLE_BASE_FS_PACKAGE}" ${PROGRESS_HEIGHT} 70 0
-  tar xpf ../../${SAMPLE_BASE_FS_PACKAGE} 
+  tar xpf ../../${SAMPLE_BASE_FS_PACKAGE} &>> install.log
 
+  wait
   # Setup networking
   echo '95' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Setting up the networking' ${PROGRESS_HEIGHT} 70 0
 
@@ -678,6 +714,8 @@ setup_ubuntu_base () {
   echo "127.0.0.1  localhost.localdomain localhost $HOSTNAME" > ./etc/hosts
   echo "$HOSTNAME" > ./etc/hostname
 
+  wait
+
   # Update welcome message
   echo '100' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${PREPARE}" --gauge 'Setting up banner messages..' ${PROGRESS_HEIGHT} 70 0
 
@@ -685,12 +723,12 @@ setup_ubuntu_base () {
   echo "printf \"\n\"" >> ./etc/update-motd.d/10-help-text
   echo "printf \" * Documentation:       ${DOCUMENTATION}\n\"" >> ./etc/update-motd.d/10-help-text
   echo "printf \" * nVidia:              https://developer.nvidia.com/embedded/linux-tegra\n\"" >> ./etc/update-motd.d/10-help-text
-  echo "printf \" * Commercial Support:  https://abaco.com\n\"" >> ./etc/update-motd.d/10-help-text
-  echo "printf \" * Created by:          ross.newman@abaco.com (FAE Abaco Systems)\n\"" >> ./etc/update-motd.d/10-help-text
+  echo "printf \" * Community Support:   https://github.com/ross-newman/packlunch\n\"" >> ./etc/update-motd.d/10-help-text
+  echo "printf \" * Created by:          ross@rossnewman.com\n\"" >> ./etc/update-motd.d/10-help-text
   echo "$OS \n \l" > ./etc/issue
   echo "DISTRIB_ID=Ubuntu
 DISTRIB_RELEASE=$UBUNTU_RELEASE_VERSION
-DISTRIB_CODENAME=xenial 
+DISTRIB_CODENAME=bionic 
 DISTRIB_DESCRIPTION=\"$OS\"" > ./etc/lsb-release
 
   # Get the user password
@@ -721,26 +759,26 @@ DISTRIB_DESCRIPTION=\"$OS\"" > ./etc/lsb-release
 
   # Setup chroot environment
   echo '5' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up QEMU emulator...' ${PROGRESS_HEIGHT} 70 
-  cp /usr/bin/qemu-aarch64-static ./usr/bin/. > /dev/null
+  cp /usr/bin/qemu-aarch64-static ./usr/bin/. &>> install.log
   echo '10' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Setting up locale...' ${PROGRESS_HEIGHT} 70 
-#  chroot . /bin/bash -c "apt-get -qqy install language-pack-en > /dev/null; sudo -u ${USER} locale-gen ${LANG} > /dev/null"
+#  chroot . /bin/bash -c "apt-get -qqy install language-pack-en &>> install.log; sudo -u ${USER} locale-gen ${LANG} &>> install.log"
   echo '15' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Enabling other sources...' ${PROGRESS_HEIGHT} 70 
   chroot . /bin/bash -c "sed -i 's/# deb http/deb http/g' /etc/apt/sources.list"
   echo '20' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating apt-get...' ${PROGRESS_HEIGHT} 70 
-  chroot . /bin/bash -c "apt-get update > /dev/null"
+  chroot . /bin/bash -c "apt-get update &>> install.log"
   echo '40' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Installing packages...' ${PROGRESS_HEIGHT} 70 
   install_packages 
   install_packlunch 0
   echo '70' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Creating user...' ${PROGRESS_HEIGHT} 70 
-  chroot . /bin/bash -c "useradd -m -s /bin/bash ${USER} > /dev/null"
+  chroot . /bin/bash -c "useradd -m -s /bin/bash ${USER} &>> install.log"
   echo '75' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Adding user to groups...' ${PROGRESS_HEIGHT} 70 
-  chroot . /bin/bash -c "usermod -a -G sudo,adm,tty,video ${USER} > /dev/null"
+  chroot . /bin/bash -c "usermod -a -G sudo,adm,tty,video ${USER} &>> install.log"
   echo '80' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Changing password...' ${PROGRESS_HEIGHT} 70 
-  chroot . /bin/bash -c "echo \"${USER}:${PASSWORD}\" | chpasswd > /dev/null"
+  chroot . /bin/bash -c "echo \"${USER}:${PASSWORD}\" | chpasswd &>> install.log"
 
   # Cleanup password files
-  rm $username > /dev/null
-  rm $password > /dev/null
+  rm $username &>> install.log
+  rm $password &>> install.log
 
   # Add eth0 startup script
   echo '85' | dialog --backtitle "${MENU_TITLE}${UBUNTU_BASE}" --title "${CONFIGURE}" --gauge 'Configuring DHCP...' ${PROGRESS_HEIGHT} 70 
@@ -751,7 +789,7 @@ DISTRIB_DESCRIPTION=\"$OS\"" > ./etc/lsb-release
   echo "fi" >> ./home/${USER}/eth0.sh
   echo "ifconfig eth0 up" >> ./home/${USER}/eth0.sh
   echo "dhclient eth0" >> ./home/${USER}/eth0.sh
-  chmod +x ./home/${USER}/eth0.sh > /dev/null
+  chmod +x ./home/${USER}/eth0.sh &>> install.log
 
   # Add complete desktop install script
   echo '#!/bin/bash 
@@ -787,7 +825,7 @@ echo "xset -dpms; xset s off" >> .xsessionrc
 echo "Completed setup" 
 echo "Type the following to start your desktop:" 
 echo "    startxfce4 | startlxde"' > ./home/${USER}/complete_desktop_install.sh
-  chmod +x ./home/${USER}/complete_desktop_install.sh > /dev/null
+  chmod +x ./home/${USER}/complete_desktop_install.sh &>> install.log
 
   echo '#!/bin/bash 
 if [ "$EUID" -ne 0 ] 
@@ -813,7 +851,7 @@ echo "Done..."
 ' > ./home/${USER}/remove_repos.sh
   chmod +x ./home/${USER}/remove_repos.sh
 
-  cd $ROOT/Linux_for_Tegra/rootfs  > /dev/null
+  cd $ROOT/Linux_for_Tegra/rootfs  &>> install.log
   
   echo '85' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Modifying .bashrc...' ${PROGRESS_HEIGHT} 70 
   echo "
@@ -822,7 +860,7 @@ export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/usr/local/cuda-8.0/lib64:/usr/local/li
 " >> ./home/${USER}/.bashrc 
 
   echo '90' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Updating networking...' ${PROGRESS_HEIGHT} 70 
-  mkdir ./etc/network > /dev/null
+  mkdir ./etc/network &>> install.log
   echo "auto lo
 iface lo inet loopback
  
@@ -840,25 +878,25 @@ iface eth2 inet dhcp" > ./etc/network/interface
   chroot . /bin/bash -c "ln -s /usr/local/cuda-8.0/targets/aarch64-linux/include /usr/local/cuda/include"
   chroot . /bin/bash -c "ln -s /usr/local/cuda-8.0/bin /usr/local/cuda/bin"
   chroot . /bin/bash -c "ln -s /usr/local/cuda-8.0/lib64 /usr/local/cuda/lib64"
-  cd ..  > /dev/null
+  cd ..  &>> install.log
 
     # Offer to open a QEMU chroot shell for manual probing of filesystem
   ask_open_shell /Linux_for_Tegra/rootfs
 
-  cd $ROOT/Linux_for_Tegra > /dev/null
+  cd $ROOT/Linux_for_Tegra &>> install.log
   echo '95' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${CONFIGURE}" --gauge 'Applying binaries...' ${PROGRESS_HEIGHT} 70 
-  ./apply_binaries.sh >> /dev/null
-  cd $ROOT/Linux_for_Tegra/rootfs > /dev/null
+  ./apply_binaries.sh &>> install.log
+  cd $ROOT/Linux_for_Tegra/rootfs &>> install.log
   chroot . /bin/bash -c "mv /home/nvidia/* /home/${USER}/.;rm -rf /home/nvidia;rm -rf /home/ubuntu"
   # fix file permissions
   chroot . /bin/bash -c "chown -R ${USER}:${USER} /home/${USER}/*"
-  cd $ROOT/Linux_for_Tegra > /dev/null
+  cd $ROOT/Linux_for_Tegra &>> install.log
 
   # Now flash the target
   flash_filesystem
 
   # Basic usage info (anonymous)
-  wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-base-setup?OS=Ubuntu_Base&Version=16.04&Setup_Time=$SECONDS&Date=$DATE"  &> /dev/null
+  wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-base-setup?OS=Ubuntu_Base&Version=16.04&Setup_Time=$SECONDS&Date=$DATE"  &>> install.log
 
   dialog --backtitle "${MENU_TITLE}${VERSION}" \
   --title "Target system should be rebooting now..." \
@@ -891,7 +929,6 @@ deboot_buildfs () {
 
   if [ -f $SAMPLE_BASE_FS_PACKAGE ]; then
 
-
     response=$?
     case $response in
        0) DEBOOT_EXISITS=true;
@@ -899,7 +936,7 @@ deboot_buildfs () {
        255 ) abort; exit -;
           ;;
        *)
-          rm -rf ./${SAMPLE_BASE_FS_PACKAGE}  > /dev/null;
+          rm -rf ./${SAMPLE_BASE_FS_PACKAGE}  &>> install.log;
           DEBOOT_EXISITS=false;
 	        ;;
     esac
@@ -908,19 +945,29 @@ deboot_buildfs () {
     DEBOOT_EXISITS=false;
   fi
 
-  if $DEBOOT_EXISITS ; then
+  if [ $DEBOOT_EXISITS == "false" ] ; then
     echo '40' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Installing debootstrap...' ${PROGRESS_HEIGHT} 70 
-    apt-get -qqy install debootstrap  > /dev/null
-    echo '70' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Removing old files...' ${PROGRESS_HEIGHT} 70 
-    rm -rf ./debootstrap  > /dev/null 
-
-    echo '90' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Setting up...' ${PROGRESS_HEIGHT} 70 
-    mkdir ./debootstrap  > /dev/null 
-    export ARCH=arm64
+    apt-get -qqy install debootstrap  &>> install.log
+    wait
+    echo '60' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Removing old files...' ${PROGRESS_HEIGHT} 70 
+    rm -rf ./debootstrap  &>> install.log 
+    wait
     
+    echo '80' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Creating filesystem" --gauge 'Setting up...' ${PROGRESS_HEIGHT} 70 
+
+    mkdir ./debootstrap  &>> install.log 
+    export ARCH=arm64
+
+    if [ -f /usr/bin/qemu-aarch64-static ] ; then
+      wait
+      echo '90' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "Setup" --gauge 'Installing QEMU for aarch64...' ${PROGRESS_HEIGHT} 70 
+      apt-get install qemu-utils qemu-efi-aarch64 qemu-system-arm
+    fi
+
   #  BOX_TYPE=--progressbox
     BOX_TYPE=--programbox
     
+    wait
     # You can add additional packages, nano added as a starter
     debootstrap \
             --arch=$ARCH \
@@ -931,18 +978,19 @@ deboot_buildfs () {
             --include=nano \
             $UBUNTU_RELEASE \
             ./debootstrap/rootfs | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "debootstrap first stage ($UBUNTU_RELEASE)..."  25 85
-    cp /usr/bin/qemu-aarch64-static ${ROOT}/debootstrap/rootfs/usr/bin > /dev/null
-    cd ${ROOT}/debootstrap/rootfs  > /dev/null
+        
+    cp /usr/bin/qemu-aarch64-static ${ROOT}/debootstrap/rootfs/usr/bin &>> install.log
+    cd ${ROOT}/debootstrap/rootfs  &>> install.log
     chroot . /bin/bash -c "/debootstrap/debootstrap --second-stage" | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "debootstrap second stage ($UBUNTU_RELEASE)..."  25 85
 
     ask_open_shell /debootstrap/rootfs
 
     # When done create a filesystem archive
     tar -cvjSf $SAMPLE_BASE_FS_PACKAGE * | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for setup to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Creating archive ${SAMPLE_BASE_FS_PACKAGE} ($UBUNTU_RELEASE)..."  25 85
-    mv $SAMPLE_BASE_FS_PACKAGE $ROOT/.  > /dev/null
-    cd -  > /dev/null
+    mv $SAMPLE_BASE_FS_PACKAGE $ROOT/.  &>> install.log
+    cd -  &>> install.log
   fi
-
+  wait
   # Now configure and flash the image
   dialog --colors --backtitle "${MENU_TITLE}${VERSION}"  \
     --timeout $TIMEOUT --yesno "Do you want configure and flash this image now?\n" 6 60
@@ -951,11 +999,11 @@ deboot_buildfs () {
   case $response in
      0 | 255) VERSION=" - Custom ${UBUNTU_RELEASE} debootstrap filesystem";
               DOCUMENTATION="https://wiki.ubuntu.com/ARM/RootfsFromScratch/QemuDebootstrap";
-              cd $ROOT > /dev/null
+              cd $ROOT &>> install.log
               setup_ubuntu_base;
               ;;
   esac
-
+  wait
   dialog --backtitle "${MENU_TITLE}${VERSION}" \
 --title "Finished flashing, setup complete..." \
 --colors \
@@ -973,10 +1021,10 @@ check_setup() {
   fi
 
   # Check that we can run the menu system
-  if which dialog > /dev/null
+  if which dialog &>> install.log
   then
     # Found so do nothing
-    echo "Ok lets continue" > /dev/null
+    echo "Ok lets continue" &>> install.log
   else
     read -p "Install dialog command (y/n)?" choice
     case "$choice" in 
@@ -1041,19 +1089,19 @@ rebuild_kernel() {
 
     response=$?
     case $response in
-       0) firefox $ROOT/nvl4t_docs/index.html > /dev/null &;;
+       0) firefox $ROOT/nvl4t_docs/index.html &>> install.log &;;
     esac
   fi
 
   case $REL in
   R27_1)
-    cd $ROOT/$KERNEL > /dev/null
+    cd $ROOT/$KERNEL &>> install.log
     dialog --colors --defaultno --clear --backtitle "${MENU_TITLE}${VERSION}"  \
       --yesno "Do you want to patch the kernel?\n\nNOTE: Adds in support for Intel x540 10GigE\n" 8 60 
 
     response=$?
     if [ $response == 0 ]; then
-      cp ./arch/arm64/configs/${CONFIG}  ./arch/arm64/configs/${CONFIG}_abaco > /dev/null
+      cp ./arch/arm64/configs/${CONFIG}  ./arch/arm64/configs/${CONFIG}_abaco &>> install.log
       echo "# Abaco Systems x540 NIC and Multicast settings
 CONFIG_IXGB=y
 CONFIG_IXGBE=y
@@ -1067,14 +1115,14 @@ CONFIG_IXGBE=y
 
   # create .config the offer to edit it (menuconfig)
   cd $ROOT/$KERNEL
-  mkdir $TEGRA_KERNEL_OUT > /dev/null
+  mkdir $TEGRA_KERNEL_OUT &>> install.log
   make mrproper 
 
 # Change to programbox if you want to wait for the user to review each build step.
 #  BOX_TYPE=--progressbox
   BOX_TYPE=--programbox
 
-  make -j$CORES O=$TEGRA_KERNEL_OUT ${CONFIG} 2> /dev/null | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building ${CONFIG}..."  25 85
+  make -j$CORES O=$TEGRA_KERNEL_OUT ${CONFIG} 2&>> install.log | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building ${CONFIG}..."  25 85
 
   dialog --colors --defaultno --backtitle "${MENU_TITLE}${VERSION}"  \
     --yesno "Do you want to run menuconfig?\n" 6 60
@@ -1083,8 +1131,8 @@ CONFIG_IXGBE=y
   MENUCONFIG="Setting up Menuconfig"
   case $response in
      0) echo '50' | dialog --backtitle "${MENU_TITLE}${VERSION}" --title "${MENUCONFIG}" --gauge 'Installing libcursers...' ${PROGRESS_HEIGHT} 70 
-        sudo apt-get -qqy install libncurses5-dev > /dev/null  # cant build menusystem without this on 16.04 LTS 
-        make menuconfig KCONFIG_CONFIG=$TEGRA_KERNEL_OUT/.config 2> /dev/null
+        sudo apt-get -qqy install libncurses5-dev &>> install.log  # cant build menusystem without this on 16.04 LTS 
+        make menuconfig KCONFIG_CONFIG=$TEGRA_KERNEL_OUT/.config 2&>> install.log
         ;;
   esac
 
@@ -1099,19 +1147,19 @@ CONFIG=$CONFIG\n
 KERNEL=/$KERNEL\n" 10 70
 
   KBUILD_START=$SECONDS
-  make -j$CORES O=$TEGRA_KERNEL_OUT zImage 2> /dev/null | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building zImage..."  25 85
-  make -j$CORES O=$TEGRA_KERNEL_OUT dtbs 2> /dev/null | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building dtbs..."  25 85 
-  make -j$CORES O=$TEGRA_KERNEL_OUT modules 2> /dev/null  | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building modules..."  25 85  
+  make -j$CORES O=$TEGRA_KERNEL_OUT zImage 2&>> install.log | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building zImage..."  25 85
+  make -j$CORES O=$TEGRA_KERNEL_OUT dtbs 2&>> install.log | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building dtbs..."  25 85 
+  make -j$CORES O=$TEGRA_KERNEL_OUT modules 2&>> install.log  | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Building modules..."  25 85  
   mkdir $TEGRA_KERNEL_OUT/modules
   make -j$CORES O=$TEGRA_KERNEL_OUT modules_install INSTALL_MOD_PATH=./modules | dialog --colors --backtitle "${MENU_TITLE} - \Z1Please wait for build to complete\Z0" --timeout $TIMEOUT $BOX_TYPE "Installing Modules..."  25 85
-  cd $TEGRA_KERNEL_OUT/modules > /dev/null
-  tar --owner root --group root -cjf kernel_supplements.tbz2 lib/modules > /dev/null
-  cd - > /dev/null
+  cd $TEGRA_KERNEL_OUT/modules &>> install.log
+  tar --owner root --group root -cjf kernel_supplements.tbz2 lib/modules &>> install.log
+  cd - &>> install.log
   KBUILD_END=$SECONDS
   KBUILD_TIME=$(($KBUILD_END - $KBUILD_START))
 
   # Basic usage info (anonymous)
-  wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-kernel-setup?OS=Ubuntu_Base&Version=16.04.2&Setup_Time=$SECONDS&Build_Time=$KBUILD_TIME&Date=$DATE"  &> /dev/null
+  wget -T 1 -O /dev/null "http://dweet.io/dweet/for/abaco-kernel-setup?OS=Ubuntu_Base&Version=16.04.2&Setup_Time=$SECONDS&Build_Time=$KBUILD_TIME&Date=$DATE"  &&>> install.log
 
   dialog --backtitle "${MENU_TITLE}${VERSION}" \
 --title "Compilation Complete (${SECONDS}s)" \
@@ -1126,7 +1174,7 @@ To remove downloads type :\n
   \Z6$SELF clean\Zn\n
   \Z6$SELF kclean (remove kernel dir only)\Zn\n\n
 To finish desktop installation please run ./complete_desktop_install.sh on target." 14 70
-  cd - > /dev/null
+  cd - &>> install.log
   cleanup
   clear
 }
@@ -1139,9 +1187,9 @@ backup_image() {
 
   check_connected 
   
-  ./tegraflash.py --bl cboot.bin --applet nvtboot_recovery.bin --chip 0x21 --cmd "read APP ${FILE}" 2> /dev/null | \
+  ./tegraflash.py --bl cboot.bin --applet nvtboot_recovery.bin --chip 0x21 --cmd "read APP ${FILE}" 2&>> install.log | \
     dialog --colors --backtitle "${MENU_TITLE} - Backup" --programbox "Creating backup image ${FILE}..."  25 85
-#  cd - > /dev/null
+#  cd - &>> install.log
 #  clear
   echo "./tegraflash.py --bl cboot.bin --applet mb1_recovery_prod.bin --chip 0x18 --cmd \"read APP ${FILE}\""
  }
@@ -1153,9 +1201,9 @@ restore_image() {
 
   check_connected 
 
-  sudo ./tegraflash.py --bl cboot.bin --applet mb1_recovery_prod.bin --chip 0x18 --cmd "write APP ${FILE}"  2> /dev/null | \
+  sudo ./tegraflash.py --bl cboot.bin --applet mb1_recovery_prod.bin --chip 0x18 --cmd "write APP ${FILE}"  2&>> install.log | \
     dialog --colors --backtitle "${MENU_TITLE} - Restore" --programbox "Restoring backup image ${FILE}..."  25 85
-  cd - > /dev/null
+  cd - &>> install.log
   clear
 }
 
@@ -1237,21 +1285,20 @@ fi
 check_setup
 
 dialog --backtitle "${MENU_TITLE}" \
---title "nVidia TX2 device setup tool" \
+--title "Nvidia Jetson device setup tool" \
 --colors \
---ok-label "Install R28.1" \
---extra-button \
---extra-label "Install R27.1" \
+--yes-label "Install R32.4.4" \
+--no-label "Exit" \
 --yesno " \n
-Abaco Systems GVC1000 (TX2) flash script \n
-    ross.newman@abaco.com (Field Applications Engineer) \n
+Jetson AGX/NX flash script \n
+    ross@rossnewman.com\n
 \n
-Script to download and flash TX2 Tegra sample file systems.\n
-   $ abaco-flash.sh (interactive setup)\n
-   $ abaco-flash.sh clean (remove all temporary files)\n
-   $ abaco-flash.sh kclean (remove kernel temporary file)\n
-   $ abaco-flash.sh remove (remove apt-get installer packages)\n
-   $ abaco-flash.sh create (create template packages file)\n
+Script to download and flash Jetson Tegra sample file systems.\n
+   $ flash-tegra.sh (interactive setup)\n
+   $ flash-tegra.sh clean (remove all temporary files)\n
+   $ flash-tegra.sh kclean (remove kernel temporary file)\n
+   $ flash-tegra.sh remove (remove apt-get installer packages)\n
+   $ flash-tegra.sh create (create template packages file)\n
 \n
 Please place board into recovery mode and connect to (this) host machine.\n\n
 \Z3WARNING: Computer must be connected to the internet to download required packages\Z0\n\n
@@ -1260,10 +1307,11 @@ Please place board into recovery mode and connect to (this) host machine.\n\n
 response=$?
 
 case $response in
-   0) select_release R28_1;;
-   1) abort; clear; exit -1;;
-   3) select_release R27_1;;
-#   4) select_release R28_2;;   
+#   0) select_release R28_1;;
+#   1) abort; clear; exit -1;;
+#   1) select_release R27_1;;
+   0) select_release R32_4_4;;   
+   1) abort; clear; echo "[ESC] key pressed."; exit -1;;   
    255) abort; clear; echo "[ESC] key pressed."; exit -1;;
 esac
 
@@ -1311,12 +1359,12 @@ menuitem=$(cat ${INPUT})
 # make decsion 
 case $menuitem in
   base) VERSION=${UBUNTU_BASE};setup_ubuntu_base;;
-  l4t) setup_l4t;;
+#  l4t) setup_l4t;;
   kernel) rebuild_kernel;;
   debootstrap) deboot_buildfs;;
   backup) backup_image;;
   restore) restore_image;;
-  quick) cd $ROOT/Linux_for_Tegra > /dev/null;flash_filesystem -r;cd ..;clear;;
+  quick) cd $ROOT/Linux_for_Tegra &>> install.log;flash_filesystem -r;cd ..;clear;;
   packlunch) remote_install;;
   Exit) abort;exit;;
 esac
