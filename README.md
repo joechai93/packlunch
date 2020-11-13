@@ -1,7 +1,7 @@
 # Packlunch the Jetpack replacement
-Nvidia TX2 replacement for Jetpack installer. Bash scritp for remote install and setup of Nvidia Jetson TX2 cards with additional kernel build and debootstrap options for minimal install.
+Nvidia Jetson replacement for Jetpack installer. Bash script for remote install and setup of Nvidia Jetson AGX /NX cards with additional kernel build and debootstrap options for minimal install.
 
-![Jetson TX2 Module](https://developer.nvidia.com/sites/default/files/akamai/embedded/images/jetsontx2/JetsonTX2Module_300px_v3.png)
+![Jetson AGX Module](https://developer.nvidia.com/sites/default/files/akamai/embedded/images/jetsonXavier/Xavier-White_Cropped_2.jpg)
 # Setup
 There is a minimal requirement for the host system to support the bash scripting environment and have the apt-get package manager. For missing dependancies the script will attempt to install the required packages.
 
@@ -10,11 +10,6 @@ As this script will install additional depencancies superuser password is reques
 ```
 sudo flash-tegra.sh
 ```
-There is also a flashing only tool with a cutdown interface called ezflash. To run this:
-```
-sudo ezflash.sh
-```
-This uses binary file systems that have been pre-built to save time for quick tests see images [here](https://github.com/Abaco-Systems/jetson-tx2-sample-filesystems). 
 
 ## Screenshots
 ![Welcome Screen](/images/packlunch-shot01.png)
